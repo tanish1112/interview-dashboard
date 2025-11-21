@@ -9,18 +9,23 @@ COL_VERTICAL = "Vertical(s) Preferences (Any 3)"
 COL_REASON = "Why do you wish to join us?"
 COL_EXPERIENCE = "Mention your past experiences."
 COL_DONE = "Interview Done"
+COL_NOTES = "Notes"
 
-def ensure_done_column(df: pd.DataFrame):
+def ensure_columns(df: pd.DataFrame):
     if COL_DONE not in df.columns:
         df[COL_DONE] = "No"
     else:
         df[COL_DONE] = df[COL_DONE].fillna("No")
         df[COL_DONE] = df[COL_DONE].apply(lambda x: "Yes" if str(x).lower() == "yes" else "No")
+
+    if COL_NOTES not in df.columns:
+        df[COL_NOTES] = ""
+
     return df
 
-def load_excel(uploaded_file):
-    df = pd.read_excel(uploaded_file, engine="openpyxl")
-    return ensure_done_column(df)
+def load_excel(file):
+    df = pd.read_excel(file, engine="openpyxl")
+    return ensure_columns(df)
 
 def save_excel(df):
     buffer = BytesIO()
@@ -29,20 +34,27 @@ def save_excel(df):
     return buffer
 
 st.title("📋 Interview Dashboard")
-st.write("Upload the Excel sheet and mark each interview as completed using **Yes/No**.")
+st.write("Upload your Excel sheet and manage interviews offline.")
 
 uploaded = st.file_uploader("Upload Excel file", type=["xlsx"])
 
 if uploaded:
     df = load_excel(uploaded)
 
-    st.sidebar.header("Select Candidate")
-    names = df[COL_NAME].tolist()
-    selected = st.sidebar.selectbox("Candidate", names)
+    st.sidebar.header("Search Candidate")
+    search = st.sidebar.text_input("Search by name")
+
+    if search:
+        filtered_names = [n for n in df[COL_NAME].tolist() if search.lower() in n.lower()]
+    else:
+        filtered_names = df[COL_NAME].tolist()
+
+    selected = st.sidebar.selectbox("Select Candidate", filtered_names)
 
     row = df[df[COL_NAME] == selected].iloc[0]
 
     st.subheader(f"Interviewee: {row[COL_NAME]}")
+
     st.write("### Vertical Preferences")
     st.write(row[COL_VERTICAL])
 
@@ -60,10 +72,13 @@ if uploaded:
         index=0 if current_status == "Yes" else 1,
         horizontal=True
     )
-
     df.loc[df[COL_NAME] == selected, COL_DONE] = new_status
 
-    st.success("Status updated (not saved yet).")
+    st.write("### Notes")
+    new_notes = st.text_area("Write notes about the candidate:", value=row[COL_NOTES])
+    df.loc[df[COL_NAME] == selected, COL_NOTES] = new_notes
+
+    st.success("Updated (not saved yet).")
 
     st.write("---")
     st.write("### Save Updated File")
